@@ -6,6 +6,7 @@ Minneapolis website and related economic data from FRED.
 """
 
 import re
+import pandas as pd
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -29,7 +30,7 @@ class BeigeBookReport:
     month: int
     region: str
     text: Optional[str] = None
-    date: Optional[datetime] = None
+    date: Optional[str] = None
 
 class BeigeBookScraper:
     """Main scraper class for Federal Reserve Beige Book reports."""
@@ -64,7 +65,6 @@ class BeigeBookScraper:
 
     def _setup_directories(self) -> None:
         """Create necessary output directories if they don't exist."""
-        (self.OUTPUT_DIR / "csv").mkdir(parents=True, exist_ok=True)
         (self.OUTPUT_DIR / "txt").mkdir(parents=True, exist_ok=True)
 
     def _make_url(self, report: BeigeBookReport) -> str:
@@ -89,22 +89,43 @@ class BeigeBookScraper:
         parts = content.split("\n", 3)
 
         date_str = parts[2] if len(parts) > 2 else None
-        text = parts[3] if len(parts) > 3 else None
+        formatted_date = self._format_date(date_string=date_str)
+ 
+        return content, formatted_date
+    from datetime import datetime
 
-        return text, date_str
-
+    @staticmethod
+    def _format_date(date_string: str) -> str:
+        """
+        Convert a date string of the form 'Month DD, YYYY' to 'YYYY-MM-DD' format.
+        
+        Args:
+            date_string (str): Date in format like 'January 15, 2025'
+        
+        Returns:
+            str: Date in ISO format 'YYYY-MM-DD'
+        
+        Example:
+            >>> format_date('January 15, 2025')
+            '2025-01-15'
+        """
+        try:
+            parsed_date = datetime.strptime(date_string, '%B %d, %Y')
+            return parsed_date.strftime('%Y-%m-%d')
+        except ValueError as e:
+            raise ValueError(f"Invalid date format. Expected 'Month DD, YYYY', got '{date_string}'") from e
+    
     def fetch_report(self, report: BeigeBookReport) -> BeigeBookReport:
         """Fetch a single report and update the BeigeBookReport object."""
         url = self._make_url(report)
         try:
             soup = self._fetch_page(url)
             text, date_str = self._extract_text(soup)
+            
             report.text = text
-            # Parse date if available
-            if date_str:
-                # Add date parsing logic here if needed
-                pass
+            report.date = date_str
             return report
+        
         except Exception as e:
             logger.error(f"Error fetching report {report}: {str(e)}")
             raise
@@ -115,7 +136,7 @@ class BeigeBookScraper:
             raise ValueError("Report has no text content")
 
         output_path = (self.OUTPUT_DIR / "txt" / str(report.year) /
-                      f"{report.month:02d}" / f"{report.year}-{report.month:02d}-{report.region}.txt")
+                      f"{report.month:02d}" / f"{report.date}-{report.region}.txt")
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_path, "w", encoding="utf-8") as f:
