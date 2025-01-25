@@ -21,7 +21,7 @@ class TextProcessor:
     calculating sentiment scores and aggregating results into a structured format.
     """
 
-    def __init__(self, num_processes: int = None):
+    def __init__(self, hf_token: str = None, num_processes: int = None):
         """
         Initialize the TextProcessor with configurable number of processes.
         
@@ -29,87 +29,57 @@ class TextProcessor:
             num_processes (int, optional): Number of processes to use. 
                                         Defaults to CPU count - 1 if not specified.
         """
+
         self.output_path = Path(Config.SENTIMENT_OUTPUT_DIR)
         self.input_path = Path(Config.SCRAPED_TEXT_DIR)
         self.num_processes = num_processes or max(1, cpu_count() - 1)
-        self.sentiment_scorer = SentimentScorer()
+        self.sentiment_scorer = SentimentScorer(token=hf_token)
 
     def process_all(self, end_year: int) -> pd.DataFrame:
-        """
-        Process all texts using multiprocessing to find sentiment scores.
-        
-        Returns:
-            pd.DataFrame: DataFrame containing processed results with date, score, and region.
-        """
         logger.info("Starting the processing of sentiment scoring")
-        # Generate jobs for parallel processing
-        jobs = [
-            {"year": year, "month": month, "base_path": self.input_path}
-            for year in os.listdir(self.input_path)
-            for month in os.listdir(self.input_path / year) 
-            if int(year) <= end_year
-        ]
+        # Generate list of all region paths
+        jobs = []
+        for year in os.listdir(self.input_path):
+            if int(year) > end_year:
+                continue
+            year_path = self.input_path / year
+            for month in os.listdir(year_path):
+                month_path = year_path / month
+                jobs.extend(list(month_path.glob("*.txt")))
         
-        # Create a process pool and map jobs
+        # Create process pool and map jobs
         with Pool(processes=self.num_processes) as pool:
-            # Use tqdm to show progress
             results = list(tqdm(
-                pool.imap(self.process_date, jobs),
+                pool.imap(self.process_file, jobs, chunksize=100),
                 total=len(jobs),
                 desc="Processing files"
             ))
         
-        # Flatten results and convert to DataFrame
-        flat_results = [item for sublist in results for item in sublist]
-        df = pd.DataFrame(flat_results)
-        
-        # Save results
+        # Filter out failed results and convert to DataFrame
+        df = pd.DataFrame([res for res in results if res is not None])
         self._save_results(df)
-        
         return df
 
-    def process_date(self, job: Dict) -> List[Dict]:
-        """
-        Process all regions for a specific year/month combination.
-        
-        Args:
-            job (Dict): Dictionary containing year, month, and base_path information.
-            
-        Returns:
-            List[Dict]: List of dictionaries containing processed results.
-        """
-        year = job["year"]
-        month = job["month"]
-        base_path = job["base_path"]
-        
+    def process_file(self, region_path: Path) -> dict:
         try:
-            region_paths = list((base_path / year / month).glob("*.txt"))
-            output = []
-
-            for region_path in region_paths:
-                try:
-                    date = self.extract_date(region_path.name)
-                    region = self.extract_identifier(region_path.name)
-                    logger.info(f"Processing Region {region} at date {date}")
-                    score = self.sentiment_score(region_path)
-                    
-                    output.append({
-                        "date": date,
-                        "score": score,
-                        "region": region,
-                        "year": year,
-                        "month": month
-                    })
-                except Exception as e:
-                    logger.warning(f"Failed to process {region_path}: {str(e)}")
-                    continue
-            logger.info(f"Succesfully processed region {region} at date {date}")
-            return output
+            text = region_path.read_text(encoding='utf-8')
+            score = self.sentiment_scorer.score(text)
+            date = self.extract_date(region_path.name)
+            region = self.extract_identifier(region_path.name)
+            year = region_path.parent.parent.name
+            month = region_path.parent.name
             
+            return {
+                "date": date,
+                "score": score,
+                "region": region,
+                "year": year,
+                "month": month
+            }
         except Exception as e:
-            logger.error(f"Failed to process {year}/{month}: {str(e)}")
-            return []
-
+            logger.warning(f"Failed to process {region_path}: {str(e)}")
+            return None
+    
     def sentiment_score(self, region_path: Path) -> float:
         """
         Calculate sentiment score for text in the given path.
