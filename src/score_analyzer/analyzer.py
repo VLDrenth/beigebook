@@ -6,7 +6,7 @@ from typing import Optional, Dict, List
 
 class ScoreAnalyzer:
     def __init__(self, filepath: str, output_dir: str = 'output'):
-        self.df = pd.read_csv(filepath / "sentiment_scores.csv", parse_dates=['date'])
+        self.df = pd.read_parquet(filepath / "sentiment_scores_clean.parquet")
         self._validate_data()
         self.output_dir = Path(output_dir)
         self._setup_output_directory()
@@ -24,7 +24,7 @@ class ScoreAnalyzer:
             plt.figure(figsize=(12, 6))
             
             # Plot raw data
-            plt.plot(region_data['date'], region_data['score'], 
+            plt.plot(region_data.index, region_data['score'], 
                     color='blue', alpha=0.5, label='Raw Data')
                         
             plt.title(f'Score Trend Over Time - {region.upper()}')
@@ -38,10 +38,3 @@ class ScoreAnalyzer:
             output_path = self.output_dir / f'time_series_{region}.png'
             plt.savefig(output_path, dpi=300, bbox_inches='tight')
             plt.close()
-
-    def _validate_data(self) -> None:
-        """Validates that all required columns are present in the dataset."""
-        required_columns = {'date', 'score', 'region', 'year', 'month'}
-        if not required_columns.issubset(self.df.columns):
-            missing = required_columns - set(self.df.columns)
-            raise ValueError(f"Missing required columns: {missing}")
