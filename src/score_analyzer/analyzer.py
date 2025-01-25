@@ -17,7 +17,7 @@ class ScoreAnalyzer:
         regions = self.df.columns
         
         for region in regions:
-            region_data = self.df["region"]
+            region_data = self.df[region]
             region_data = region_data.sort_index()
             
             plt.figure(figsize=(12, 6))
