@@ -8,12 +8,12 @@ Minneapolis website and related economic data from FRED.
 import re
 import pandas as pd
 import logging
+import requests
+
 from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, Tuple, Iterator
-
-import requests
 from bs4 import BeautifulSoup
 
 # Configure logging
@@ -146,8 +146,7 @@ class BeigeBookScraper:
         """Fetch the most recent Beige Book report."""
         # Get current date
         now = datetime.now()
-        # Beige Book is released 8 times per year
-        # You might want to adjust this logic based on the actual release schedule
+
         report = BeigeBookReport(
             year=now.year,
             month=now.month,
@@ -161,72 +160,71 @@ class BeigeBookScraper:
         except Exception as e:
             logger.error(f"Failed to fetch latest report: {str(e)}")
 
-def _get_valid_dates(self, start_date: Optional[datetime] = None, 
-                      end_date: Optional[datetime] = None) -> Iterator[Tuple[int, int]]:
-    """
-    Generate valid year-month combinations for Beige Book reports between start_date and end_date.
-    
-    Args:
-        start_date: Optional starting date. If None, uses earliest available date
-        end_date: Optional end date. If None, uses current date
+    def _get_valid_dates(self, start_date: Optional[datetime] = None, 
+                        end_date: Optional[datetime] = None) -> Iterator[Tuple[int, int]]:
+        """
+        Generate valid year-month combinations for Beige Book reports between start_date and end_date.
         
-    Yields:
-        Tuples of (year, month) for valid Beige Book release dates
-    """
-    if end_date is None:
-        end_date = datetime.now()
-    
-    if start_date is None:
-        # You might want to adjust this based on actual earliest available date
-        start_date = datetime(2000, 1, 1)
-    
-    current_year = start_date.year
-    while current_year <= end_date.year:
-        for month in self.RELEASE_MONTHS:
-            current_date = datetime(current_year, month, 1)
-            if start_date <= current_date <= end_date:
-                yield (current_year, month)
-        current_year += 1
+        Args:
+            start_date: Optional starting date. If None, uses earliest available date
+            end_date: Optional end date. If None, uses current date
+            
+        Yields:
+            Tuples of (year, month) for valid Beige Book release dates
+        """
+        if end_date is None:
+            end_date = datetime.now()
+        
+        if start_date is None:
+            start_date = datetime(2000, 1, 1)
+        
+        current_year = start_date.year
+        while current_year <= end_date.year:
+            for month in self.RELEASE_MONTHS:
+                current_date = datetime(current_year, month, 1)
+                if start_date <= current_date <= end_date:
+                    yield (current_year, month)
+            current_year += 1
 
-def fetch_all(self, start_date: Optional[datetime] = None, 
-              end_date: Optional[datetime] = None,
-              regions: Optional[list[str]] = None) -> list[BeigeBookReport]:
-    """
-    Fetch all Beige Book reports between start_date and end_date for specified regions.
-    
-    Args:
-        start_date: Optional starting date. If None, uses earliest available date
-        end_date: Optional end date. If None, uses current date
-        regions: Optional list of region codes. If None, fetches all regions
+    def fetch_all(self, start_date: Optional[datetime] = None, 
+                end_date: Optional[datetime] = None,
+                regions: Optional[list[str]] = None) -> list[BeigeBookReport]:
+        """
+        Fetch all Beige Book reports between start_date and end_date for specified regions.
         
-    Returns:
-        List of BeigeBookReport objects containing the fetched reports
-    """
-    if regions is None:
-        regions = self.REGIONS
-    
-    reports = []
-    
-    for year, month in self._get_valid_dates(start_date, end_date):
-        for region in regions:
-            try:
-                report = BeigeBookReport(year=year, month=month, region=region)
-                fetched_report = self.fetch_report(report)
-                self.save_report(fetched_report)
-                reports.append(fetched_report)
-                logger.info(f"Successfully fetched report: {year}-{month:02d}-{region}")
-            except Exception as e:
-                logger.error(f"Failed to fetch report {year}-{month:02d}-{region}: {str(e)}")
-                continue
-    
-    return reports
+        Args:
+            start_date: Optional starting date. If None, uses earliest available date
+            end_date: Optional end date. If None, uses current date
+            regions: Optional list of region codes. If None, fetches all regions
+            
+        Returns:
+            List of BeigeBookReport objects containing the fetched reports
+        """
+        if regions is None:
+            regions = self.REGIONS
+        
+        reports = []
+        
+        for year, month in self._get_valid_dates(start_date, end_date):
+            for region in regions:
+                try:
+                    report = BeigeBookReport(year=year, month=month, region=region)
+                    fetched_report = self.fetch_report(report)
+                    self.save_report(fetched_report)
+                    reports.append(fetched_report)
+                    logger.info(f"Successfully fetched report: {year}-{month:02d}-{region}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch report {year}-{month:02d}-{region}: {str(e)}")
+                    continue
+        
+        return reports
 
 def main():
     """Main entry point for the scraper."""
     scraper = BeigeBookScraper()
 
     # Fetch latest Beige Book report
-    scraper.fetch_latest()
+    scraper.fetch_all()
 
 if __name__ == "__main__":
     main()
