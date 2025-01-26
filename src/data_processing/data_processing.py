@@ -54,7 +54,8 @@ class ProcessData:
         df_normalized = ((df_imputed - df_imputed.expanding(min_periods=12).mean()) 
                         / df_imputed.expanding(min_periods=12).std())
         
-        self.df = df_normalized
+        
+        self.df = df_normalized.bfill()
 
         if self.save:
             self.df.to_parquet(self.file_path)

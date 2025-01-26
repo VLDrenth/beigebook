@@ -1,10 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
-from typing import Optional, Dict, List
 
-class ScoreAnalyzer:
+class ScorePlotter:
     def __init__(self, filepath: str, output_dir: str = 'output'):
         self.df = pd.read_parquet(filepath / "sentiment_scores_clean.parquet")
         self.output_dir = Path(output_dir)
