@@ -11,7 +11,8 @@ class Config:
     SCRAPED_TEXT_DIR = DATA_DIR / "txt"
     SENTIMENT_OUTPUT_DIR = DATA_DIR / "sentiment_results"
     PLOTS_OUTPUT_DIR = DATA_DIR / "plots"
-    END_YEAR = 2011
+    END_YEAR = 2010
 
     # API configurations
     HF_TOKEN = os.getenv("HF_TOKEN")
+    OPENAI_TOKEN = os.getenv("OPENAI_TOKEN")
