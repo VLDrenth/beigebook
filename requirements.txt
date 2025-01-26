@@ -3,3 +3,6 @@ pandas
 requests
 bs4
 html5lib
+pytorch
+matplotlib
+transformers

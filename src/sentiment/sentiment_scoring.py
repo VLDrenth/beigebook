@@ -1,5 +1,6 @@
 from huggingface_hub import InferenceClient
 from typing import List, Union
+from nltk.tokenize import sent_tokenize
 import numpy as np
 import os
 
@@ -9,11 +10,11 @@ class SentimentScorer:
             token = os.getenv("HF_TOKEN")  # Store token as environment variable
         
         self.client = InferenceClient(
-            model="distilbert-base-uncased-finetuned-sst-2-english",
+            model="ProsusAI/finbert",
             token=token
         )
     
-    def score(self, text: str = None, chunk_size: int = 512) -> float:
+    def score(self, text: str = None, batch_size: int = 64) -> float:
         """
         Score text sentiment by splitting into chunks and processing in a single batch.
         
@@ -27,16 +28,20 @@ class SentimentScorer:
         if not text:
             raise ValueError("Input text cannot be empty")
 
-        # Split text into chunks of specified size
-        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
-        
-        # Process all chunks in a single API call
-        results = self.client.text_classification(chunks)
-        
+        sentences = sent_tokenize(text)
+        scores = []
+    
+        for i in range(0, len(sentences), batch_size):
+            batch = sentences[i:i+batch_size]
+            results = self.client.text_classification(batch)
+            scores.extend(results)
+            
+        scores_filtered = [res["score"] if res["label"] == "positive" else -res["score"] 
+                  for res in scores if res["label"] in ["positive", "negative"]]
+
+        if not scores_filtered:
+            raise ValueError("No scores were found")
+
         # Calculate average sentiment score
-        avg_score = np.mean([
-            r["score"] if r["label"] == "POSITIVE" else 1 - r["score"] 
-            for r in results
-        ])
-        
+        avg_score = np.mean([res for res in scores_filtered])  
         return avg_score
