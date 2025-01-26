@@ -36,8 +36,17 @@ class SentimentScorer:
             results = self.client.text_classification(batch)
             scores.extend(results)
             
-        scores_filtered = [res["score"] if res["label"] == "positive" else -res["score"] 
-                  for res in scores if res["label"] in ["positive", "negative"]]
+        scores_filtered = []
+        
+        for res in scores:
+            label = res["label"]
+            score = res["score"]
+            if label == "positive":
+                scores_filtered.append(score)
+            elif label == "negative":
+                scores_filtered.append(-score)
+            else:
+                scores_filtered.append(0)
 
         if not scores_filtered:
             raise ValueError("No scores were found")
