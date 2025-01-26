@@ -23,19 +23,9 @@ class ProcessData:
 
         # Create normalized scores
         self.df['normalized_score'] = self.df.apply(
-            lambda x: x['score'] * len(x['text']) if x["label"] == "positive" else -x['score'] * len(x['text']), 
+            lambda x: 1 * len(x['text']) if x["label"] == "positive" else -1 * len(x['text']), 
             axis=1
         )
-
-        # Calculate quantiles for filtering
-        lower_quantile = self.df['normalized_score'].quantile(self.alpha)
-        upper_quantile = self.df['normalized_score'].quantile(1 - self.alpha)
-
-        # Filter out extreme values
-        self.df = self.df[
-            (self.df['normalized_score'] >= lower_quantile) & 
-            (self.df['normalized_score'] <= upper_quantile)
-        ]
 
         # Calculate mean scores by region and date
         mean_scores = (self.df
@@ -61,10 +51,9 @@ class ProcessData:
                     )
         
         # Calculate z-scores using expanding window
-        df_normalized = ((df_imputed - df_imputed.expanding(min_periods=24).mean()) 
-                        / df_imputed.expanding(min_periods=24).std())
+        df_normalized = ((df_imputed - df_imputed.expanding(min_periods=12).mean()) 
+                        / df_imputed.expanding(min_periods=12).std())
         
-        df_normalized = df_normalized.ewm(alpha=0.7).mean()
         self.df = df_normalized
 
         if self.save:
