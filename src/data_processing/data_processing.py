@@ -35,6 +35,8 @@ class ProcessData:
             .bfill()  # Backward fill for any remaining NAs at the start
         )
 
+        df = (df - df.rolling(window=12).mean()) / df.rolling(window=12).std()
+
         # Store transformed data
         self.df = df
 

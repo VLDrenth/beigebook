@@ -14,26 +14,32 @@ class ScoreAnalyzer:
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
     def plot_regional_time_series(self) -> None:
-        regions = self.df.columns
+        plt.style.use('seaborn-v0_8-whitegrid')
         
-        for region in regions:
-            region_data = self.df[region]
-            region_data = region_data.sort_index()
+        for region in self.df.columns:
+            region_data = self.df[region].sort_index()
             
-            plt.figure(figsize=(12, 6))
+            fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
             
-            # Plot raw data
-            plt.plot(region_data.index, region_data.values, 
-                    color='blue', alpha=0.5, label='Raw Data')
-                        
-            plt.title(f'Score Trend Over Time - {region.upper()}')
-            plt.xlabel('Date')
-            plt.ylabel('Score')
-            plt.xticks(rotation=45)
-            plt.grid(True)
-            plt.legend()
+            ax.plot(region_data.index, region_data.values, 
+                    color='#2E5A88', linewidth=1.5, label='Sentiment Score')
+            
+            # Formatting
+            ax.set_xlabel('Date', fontsize=11, fontweight='bold')
+            ax.set_ylabel('Sentiment Score', fontsize=11, fontweight='bold')
+            ax.set_title(f'Regional Sentiment Analysis: {region.title()}', 
+                        fontsize=12, fontweight='bold', pad=15)
+            
+            # Clean up ticks
+            ax.tick_params(axis='both', labelsize=10)
+            plt.xticks(rotation=45, ha='right')
+            
+            # Adjust grid
+            ax.grid(True, linestyle='--', alpha=0.7)
+            
+            # Legend
+            ax.legend(frameon=True, fancybox=True, framealpha=0.95, fontsize=10)
+            
             plt.tight_layout()
-            
-            output_path = self.output_dir / f'time_series_{region}.png'
-            plt.savefig(output_path, dpi=300, bbox_inches='tight')
+            plt.savefig(self.output_dir / f'time_series_{region}.png')
             plt.close()
