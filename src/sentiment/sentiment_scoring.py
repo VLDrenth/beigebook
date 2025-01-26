@@ -1,15 +1,15 @@
+import numpy as np
+import os
+import json
+
+from dataclasses import dataclass
+from typing import List
 from abc import ABC, abstractmethod
 from typing import Optional, List
 from huggingface_hub import InferenceClient
 from openai import OpenAI
 from nltk.tokenize import sent_tokenize
-import numpy as np
-import os
-import json
 
-
-from dataclasses import dataclass
-from typing import List
 
 @dataclass
 class SentimentScore:

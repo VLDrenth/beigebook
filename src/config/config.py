@@ -11,7 +11,11 @@ class Config:
     SCRAPED_TEXT_DIR = DATA_DIR / "txt"
     SENTIMENT_OUTPUT_DIR = DATA_DIR / "sentiment_results"
     PLOTS_OUTPUT_DIR = DATA_DIR / "plots"
-    END_YEAR = 2010
+
+
+    # Run settings
+    END_YEAR = 2024
+    SCORER_TYPE = "huggingface"
 
     # API configurations
     HF_TOKEN = os.getenv("HF_TOKEN")

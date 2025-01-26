@@ -2,13 +2,13 @@ import pandas as pd
 import os
 import logging
 import re
+
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from tqdm import tqdm
 from typing import List
-
 from src.config.config import Config
-from src.sentiment.sentiment_scoring import HuggingFaceSentimentScorer, OpenAISentimentScorer, DocumentSentiment
+from src.sentiment.sentiment_scoring import SentimentScorer
 
 logger = logging.getLogger("processor_logger")
 
@@ -32,7 +32,7 @@ class TextProcessor:
         self.output_path = Path(Config.SENTIMENT_OUTPUT_DIR)
         self.input_path = Path(Config.SCRAPED_TEXT_DIR)
         self.num_processes = num_processes or max(1, cpu_count() - 1)
-        self.sentiment_scorer = HuggingFaceSentimentScorer(token=token)
+        self.sentiment_scorer = SentimentScorer(scorer_type=Config.SCORER_TYPE, token=token)
 
     def process_file(self, region_path: Path) -> List[dict]:
         try:
