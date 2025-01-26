@@ -20,7 +20,8 @@ class ProcessData:
             pd.DataFrame: Transformed dataframe with monthly frequency and imputed values
         """
         df = self.df.pivot(columns='region', values='score')
-        
+        df["index"] = df.mean(1)
+
         # Resample to monthly frequency taking the mean for numeric columns
         df = df.resample('M').mean()
  

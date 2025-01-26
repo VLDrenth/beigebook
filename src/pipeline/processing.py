@@ -21,7 +21,7 @@ class TextProcessor:
     calculating sentiment scores and aggregating results into a structured format.
     """
 
-    def __init__(self, hf_token: str = None, num_processes: int = None):
+    def __init__(self, hf_token: str = None, num_processes: int = 4):
         """
         Initialize the TextProcessor with configurable number of processes.
         
