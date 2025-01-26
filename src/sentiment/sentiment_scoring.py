@@ -1,56 +1,148 @@
+from abc import ABC, abstractmethod
+from typing import Optional, List
 from huggingface_hub import InferenceClient
-from typing import List, Union
+from openai import OpenAI
 from nltk.tokenize import sent_tokenize
 import numpy as np
 import os
+import json
 
-class SentimentScorer:
-    def __init__(self, token: str = None):
-        if token is None:
-            token = os.getenv("HF_TOKEN")  # Store token as environment variable
+
+from dataclasses import dataclass
+from typing import List
+
+@dataclass
+class SentimentScore:
+    label: str
+    text: str
+    chunk_id: int
+    score: float
+
+@dataclass
+class DocumentSentiment:
+    scores: List[SentimentScore]
+    date: str
+    region: str
+    year: str
+    month: str
+    
+    @property
+    def median_score(self) -> float:
+        # Calculate weighted median based on all scores
+        all_scores = []
+        for sentiment in self.scores:
+            if sentiment.positive > max(sentiment.negative, sentiment.neutral):
+                all_scores.append(1)
+            elif sentiment.negative > max(sentiment.positive, sentiment.neutral):
+                all_scores.append(-1)
+        return np.median(all_scores) if all_scores else 0
+
+class BaseSentimentScorer(ABC):
+    """Abstract base class for sentiment scoring implementations."""
+    
+    @abstractmethod
+    def score(self, text: str, batch_size: int = 64) -> float:
+        """Score text sentiment and return a normalized score.
         
+        Args:
+            text: Input text to analyze
+            batch_size: Size of batches for processing (if applicable)
+                
+        Returns:
+            float: Sentiment score between -1 and 1
+        """
+        pass
+
+class HuggingFaceSentimentScorer(BaseSentimentScorer):
+    """Sentiment scorer using HuggingFace's FinBERT model."""
+    
+    def __init__(self, token: Optional[str] = None):
+        if token is None:
+            token = os.getenv("HF_TOKEN")
+            
         self.client = InferenceClient(
             model="ProsusAI/finbert",
             token=token
         )
     
-    def score(self, text: str = None, batch_size: int = 64) -> float:
-        """
-        Score text sentiment by splitting into chunks and processing in a single batch.
-        
-        Args:
-            text (str): Input text to analyze
-            chunk_size (int): Size of chunks to split text into
-                
-        Returns:
-            float: Average sentiment score between 0 and 1
-        """
+    def score(self, text: str, batch_size: int = 64) -> DocumentSentiment:
         if not text:
             raise ValueError("Input text cannot be empty")
 
-        sentences = sent_tokenize(text)
-        scores = []
-    
-        for i in range(0, len(sentences), batch_size):
-            batch = sentences[i:i+batch_size]
-            results = self.client.text_classification(batch)
-            scores.extend(results)
-            
-        scores_filtered = []
-        
-        for res in scores:
-            label = res["label"]
-            score = res["score"]
-            if label == "positive":
-                scores_filtered.append(score)
-            elif label == "negative":
-                scores_filtered.append(-score)
-            else:
-                scores_filtered.append(0)
+        chunks = sent_tokenize(text)
+        sentiment_scores = []
 
-        if not scores_filtered:
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i:i+batch_size]
+            results = self.client.text_classification(batch)
+            
+            for idx, (result, chunk_text) in enumerate(zip(results, batch),start=i):
+                sentiment_scores.append(SentimentScore(
+                    label=result["label"],
+                    text=chunk_text,
+                    chunk_id=idx,
+                    score=result["score"]
+                ))
+
+        if not sentiment_scores:
             raise ValueError("No scores were found")
 
-        # Calculate average sentiment score
-        avg_score = np.mean([res for res in scores_filtered])  
-        return avg_score
+        return sentiment_scores
+
+class OpenAISentimentScorer(BaseSentimentScorer):
+    """Sentiment scorer using OpenAI's API."""
+    
+    def __init__(self, token: Optional[str] = None, model: str = "gpt-4-turbo"):
+        self.token = token or os.getenv("OPENAI_API_KEY")
+        self.model = model
+        
+    def score(self, text: str, batch_size: int = 64) -> float:
+        """The batch_size parameter is included for interface consistency but not used."""
+        if not text:
+            raise ValueError("Input text cannot be empty")
+
+        client = OpenAI(api_key=self.token)
+        
+        messages = [
+            {"role": "system", "content": """You are a macroeconomic sentiment analyzer. 
+            Analyze the sentiment of the given text and return a JSON object with a 
+            'score' field containing a float between -1 (most negative) and 1 (most positive).
+            A text indicating heavy distress or a big recession would be -1, while a historic boom of economic growth might be 1.
+            """},
+            {"role": "user", "content": f"Analyze the sentiment of: {text}"}
+        ]
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            response_format={"type": "json_object"}
+        )
+        
+        try:
+            result = json.loads(response.choices[0].message.content)
+            return float(result["score"])
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            raise ValueError(f"Failed to parse LLM response: {e}")
+
+class SentimentScorer:
+    """Factory class for creating sentiment scorers with consistent interface."""
+    
+    def __init__(self, scorer_type: str = "huggingface", token: Optional[str] = None, 
+                 model: str = "gpt-4"):
+        """Initialize the appropriate sentiment scorer.
+        
+        Args:
+            scorer_type: Type of scorer to use ("huggingface" or "openai")
+            token: API token/key for the chosen service
+            model: Model identifier (only used for OpenAI)
+        """
+        if scorer_type == "huggingface":
+            self.scorer = HuggingFaceSentimentScorer(token)
+        elif scorer_type == "openai":
+            self.scorer = OpenAISentimentScorer(token, model)
+        else:
+            raise ValueError(f"Unknown scorer type: {scorer_type}")
+    
+    def score(self, text: str, batch_size: int = 64) -> float:
+        """Score text sentiment using the configured implementation."""
+        return self.scorer.score(text, batch_size)
