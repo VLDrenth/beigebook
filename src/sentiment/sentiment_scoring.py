@@ -41,7 +41,7 @@ class BaseSentimentScorer(ABC):
     """Abstract base class for sentiment scoring implementations."""
     
     @abstractmethod
-    def score(self, text: str, batch_size: int = 64) -> float:
+    def score(self, text: str, batch_size: int = 64) -> DocumentSentiment:
         """Score text sentiment and return a normalized score.
         
         Args:
@@ -61,28 +61,25 @@ class HuggingFaceSentimentScorer(BaseSentimentScorer):
             token = os.getenv("HF_TOKEN")
             
         self.client = InferenceClient(
-            model="ProsusAI/finbert",
+            model="https://j1jnt8vxqmcxavjl.us-east-1.aws.endpoints.huggingface.cloud",
             token=token
         )
     
-    def score(self, text: str, batch_size: int = 64) -> DocumentSentiment:
+    def score(self, text: str) -> DocumentSentiment:
         if not text:
             raise ValueError("Input text cannot be empty")
 
         chunks = sent_tokenize(text)
         sentiment_scores = []
 
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i+batch_size]
-            results = self.client.text_classification(batch)
-            
-            for idx, (result, chunk_text) in enumerate(zip(results, batch),start=i):
-                sentiment_scores.append(SentimentScore(
-                    label=result["label"],
-                    text=chunk_text,
-                    chunk_id=idx,
-                    score=result["score"]
-                ))
+        for idx, chunk in enumerate(chunks):
+            result = self.client.text_classification(chunk, top_k=1)
+            sentiment_scores.append(SentimentScore(
+                label=result["label"],
+                text=chunk,
+                chunk_id=idx,
+                score=result["score"]
+            ))
 
         if not sentiment_scores:
             raise ValueError("No scores were found")
